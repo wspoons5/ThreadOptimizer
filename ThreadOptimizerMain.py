@@ -1,4 +1,11 @@
-## TO-ADD: Periodically check runtime of function while running and if it exceeds previous shortest runtime short-circuit
+'''
+TO-ADD:
+Periodically check runtime of function while running and if it exceeds previous shortest runtime short-circuit
+Make copies of all args to the thread so you aren't messing with things you shouldn't
+Or, tell the user to provide copies of all args so you aren't messing with things you shouldn't
+** I prefer telling user to put in copies b/c that way if you have custom classes that don't have general copy
+   methods the program can actually handle those cases.
+'''
 
 import random
 import threading
@@ -11,29 +18,40 @@ from collections import deque
 
 def main():
 	## The main function
-	deq = deque(readUrlTestFile("randomUrls.txt"))
+	workQ = Queue()
+	urls = readUrlTestFile("randomUrls.txt")
+
+	outfile = open("threadTestMaster.csv", "w")
+	outfile.write("sampleID, sampleSize, threadCount, runTime\n")
+
+	for url in urls:
+		workQ.put(url)
+
 	soupList = []
 
-	rt = estimateExpectedRunTime(workQ, 8, 10, testFunction, [soupList])
-	
-	print(rt)
+	buildDataSet(outfile, workQ, 50, 100, testFunction, [soupList.copy()])
 
-def estimateExpectedRunTime(workQ, sampleSize, threadCount, iterations, foo, fooArgs):
+	outfile.close()
+
+def buildDataSet(outfile, workQ, sampleSize, iterations, testFunction, fooArgs):
 	deq = deque()
 	
 	for i in range(workQ.qsize()):
 		item = workQ.get()
 		deq.append(item)
 		workQ.put(item)
-
-	runTimes = []
 	
+	sampleId = 1
 	for i in range(iterations):
-		sample = getRandomSample(deq, sampleSize)
-		print(i)
-		runTimes.append(runTest(sample, threadCount, foo, fooArgs))
+		print("Processing Iteration {}".format(i))
 
-	return sum(runTimes) / float(iterations)
+		sample = getRandomSample(deq, sampleSize)	
+	
+		for tc in range(1, sampleSize+1):
+			rt = runTest(sample, tc, testFunction, fooArgs)
+			outfile.write("url_{},{},{},{}\n".format(sampleId, sampleSize, tc, rt))
+	
+		sampleId += 1
 
 ## Test function that takes a url string, opens it, and puts the request object into a BeautifulSoup object
 def testFunction(soupList, urlQ):
@@ -58,7 +76,6 @@ def testFunction(soupList, urlQ):
 
 
 def runTest(sample, threadCount, foo, fooArgs):
-	startTime = time.time()
 	sampleQ = Queue()
 
 	argsCopy = fooArgs.copy()
@@ -67,7 +84,8 @@ def runTest(sample, threadCount, foo, fooArgs):
 		sampleQ.put(item)
 
 	argsCopy.append(sampleQ)
-	print("fooArgs Length: {}".format(len(fooArgs)))
+	
+	startTime = time.time()
 	threads = []
 
 	for i in range(threadCount):
