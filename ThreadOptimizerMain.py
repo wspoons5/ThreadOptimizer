@@ -2,34 +2,38 @@
 TO-ADD:
 Periodically check runtime of function while running and if it exceeds previous shortest runtime short-circuit
 Make copies of all args to the thread so you aren't messing with things you shouldn't
+
+get the average runtime for an item to determine how big you sample size can be to keep the runtime below a certain point
+
 Or, tell the user to provide copies of all args so you aren't messing with things you shouldn't
 ** I prefer telling user to put in copies b/c that way if you have custom classes that don't have general copy
    methods the program can actually handle those cases.
-'''
 
-import random
-import threading
-import os
-import time
+'''
+import math, random, threading, os, time, string
 from bs4 import BeautifulSoup
 from urllib.request import urlopen
 from queue import Queue
 from collections import deque
 
+cd = "C:/Users/Michael/Projects/ThreadOptimizer"
+
 def main():
 	## The main function
 	workQ = Queue()
-	urls = readUrlTestFile("randomUrls.txt")
+	# urls = readUrlTestFile("randomUrls.txt")
+	# nums = [random.randint(1,20) for x in range(10000)]
+	strings = [''.join(random.choices(string.ascii_uppercase + string.digits, k=10)) for x in range(10000)]
 
-	outfile = open("threadTestMaster.csv", "w")
+	outfile = open("readWriteThreadTestMaster.csv", "w")
 	outfile.write("sampleID, sampleSize, threadCount, runTime\n")
 
-	for url in urls:
-		workQ.put(url)
+	for item in strings:
+		workQ.put(item)
 
-	soupList = []
+	stringList = []
 
-	buildDataSet(outfile, workQ, 50, 100, testFunction, [soupList.copy()])
+	buildDataSet(outfile, workQ, 50, 100, readWriteTestFunction, [stringList.copy()])
 
 	outfile.close()
 
@@ -49,12 +53,63 @@ def buildDataSet(outfile, workQ, sampleSize, iterations, testFunction, fooArgs):
 	
 		for tc in range(1, sampleSize+1):
 			rt = runTest(sample, tc, testFunction, fooArgs)
-			outfile.write("url_{},{},{},{}\n".format(sampleId, sampleSize, tc, rt))
+			outfile.write("IO_{},{},{},{}\n".format(sampleId, sampleSize, tc, rt))
 	
 		sampleId += 1
 
+def compTestFunction(factList, numQ):
+	while not numQ.empty():
+
+		if numQ.qsize() % 10 == 0:
+			print("\tApproximately {} items remaining.".format(numQ.qsize()))
+
+		num = numQ.get()
+
+		if num == None:
+			break
+
+		try:
+			factList.append(math.factorial(num))
+		
+		except Exception:
+			pass
+
+		numQ.task_done()
+
+
+'''
+Test function that computes the factorial of an integer in the realm [1,19] and stores it in a list to 
+simulate a CPU bounded load 
+'''
+def readWriteTestFunction(contentsList, stringQ):
+	while not stringQ.empty():
+
+		if stringQ.qsize() % 10 == 0:
+			print("\tApproximately {} items remaining.".format(stringQ.qsize()))
+
+		item = stringQ.get()
+
+		if item == None:
+			break
+
+		try:
+			outfile = open("{}/test/{}.txt".format(cd, item), "w")
+			outfile.write(item)
+			outfile.close()
+
+			infile = open("{}/test/{}.txt".format(cd, item), "r")
+			contents = infile.read()
+			infile.close()
+
+			contentsList.append(contents)
+
+		except Exception:
+			pass
+
+		stringQ.task_done()
+
 ## Test function that takes a url string, opens it, and puts the request object into a BeautifulSoup object
-def testFunction(soupList, urlQ):
+def urlTestFunction(soupList, urlQ):
 	while not urlQ.empty():
 
 		if urlQ.qsize() % 10 == 0:
